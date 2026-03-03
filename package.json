@@ -1,11 +1,14 @@
 {
   "name": "blog-backend",
   "version": "1.0.0",
-  "description": "Blog API with Express and SQLite",
+  "description": "Blog API with Express and MongoDB",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
