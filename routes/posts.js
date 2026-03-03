@@ -1,36 +1,41 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
 const Like = require('../models/Like');
 const { auth, adminOnly, optionalAuth } = require('../middleware/auth');
 
-const router = express.Router();
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
+// Use Cloudinary for production, local storage for development
+let upload;
+if (process.env.CLOUDINARY_CLOUD_NAME) {
+  const { upload: cloudinaryUpload } = require('../config/cloudinary');
+  upload = cloudinaryUpload;
+} else {
+  const multer = require('multer');
+  const path = require('path');
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+      cb(null, Date.now() + path.extname(file.originalname));
     }
-    cb(new Error('Only image files are allowed'));
-  }
-});
+  });
+  upload = multer({ 
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = /jpeg|jpg|png|gif|webp/;
+      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+      const mimetype = allowedTypes.test(file.mimetype);
+      if (extname && mimetype) {
+        return cb(null, true);
+      }
+      cb(new Error('Only image files are allowed'));
+    }
+  });
+}
+
+const router = express.Router();
 
 // Get all posts
 router.get('/', optionalAuth, async (req, res) => {
@@ -175,7 +180,11 @@ router.post('/', auth, adminOnly, upload.single('cover_image'), async (req, res)
       return res.status(400).json({ error: 'Title and content are required' });
     }
 
-    const cover_image = req.file ? `/uploads/${req.file.filename}` : null;
+    // Handle both Cloudinary (path) and local uploads (filename)
+    let cover_image = null;
+    if (req.file) {
+      cover_image = req.file.path || `/uploads/${req.file.filename}`;
+    }
     const postExcerpt = excerpt || content.substring(0, 150) + '...';
 
     const post = await Post.create({
@@ -209,7 +218,12 @@ router.put('/:id', auth, adminOnly, upload.single('cover_image'), async (req, re
     }
 
     const { title, content, excerpt, published, price, category } = req.body;
-    const cover_image = req.file ? `/uploads/${req.file.filename}` : post.cover_image;
+    
+    // Handle both Cloudinary (path) and local uploads (filename)
+    let cover_image = post.cover_image;
+    if (req.file) {
+      cover_image = req.file.path || `/uploads/${req.file.filename}`;
+    }
 
     const updatedPost = await Post.findByIdAndUpdate(
       req.params.id,
