@@ -152,7 +152,17 @@ router.post(
   "/",
   auth,
   adminOnly,
-  upload.single("cover_image"),
+  (req, res, next) => {
+    upload.single("cover_image")(req, res, (err) => {
+      if (err) {
+        console.error("Upload Error:", err);
+        return res
+          .status(500)
+          .json({ error: "Image upload failed: " + err.message });
+      }
+      next();
+    });
+  },
   async (req, res) => {
     try {
       const { title, content, excerpt, price, category } = req.body;
@@ -168,22 +178,23 @@ router.post(
       if (req.file) {
         cover_image = req.file.path || `/uploads/${req.file.filename}`;
       }
-      const postExcerpt = excerpt || content.substring(0, 150) + "...";
+      const postExcerpt =
+        excerpt || content.replace(/<[^>]*>/g, "").substring(0, 150) + "...";
 
       const post = await Post.create({
         title,
         content,
         excerpt: postExcerpt,
         cover_image,
-        price: price || null,
-        category: category || "gaming",
+        price: price || 0,
+        category: category || "other",
         author: req.user.id,
       });
 
-      res.status(201).json({ ...post.toObject(), id: post._id });
+      res.status(201).json(post);
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Server error" });
+      console.error("Create Post Error:", error);
+      res.status(500).json({ error: "Server error: " + error.message });
     }
   },
 );
@@ -193,17 +204,23 @@ router.put(
   "/:id",
   auth,
   adminOnly,
-  upload.single("cover_image"),
+  (req, res, next) => {
+    upload.single("cover_image")(req, res, (err) => {
+      if (err) {
+        console.error("Upload Error:", err);
+        return res
+          .status(500)
+          .json({ error: "Image upload failed: " + err.message });
+      }
+      next();
+    });
+  },
   async (req, res) => {
     try {
       const post = await Post.findById(req.params.id);
 
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
-      }
-
-      if (post.author.toString() !== req.user.id) {
-        return res.status(403).json({ error: "Not authorized" });
       }
 
       const { title, content, excerpt, published, price, category } = req.body;
@@ -224,15 +241,15 @@ router.put(
           published: published !== undefined ? published : post.published,
           price: price !== undefined ? price : post.price,
           category: category || post.category,
-          updated_at: Date.now(),
+          updatedAt: Date.now(),
         },
         { new: true },
       );
 
-      res.json({ ...updatedPost.toObject(), id: updatedPost._id });
+      res.json(updatedPost);
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Server error" });
+      console.error("Update Post Error:", error);
+      res.status(500).json({ error: "Server error: " + error.message });
     }
   },
 );

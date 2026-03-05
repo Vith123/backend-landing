@@ -5,7 +5,12 @@ const { cloudinary } = require("../config/cloudinary");
 
 let storage;
 
-if (process.env.CLOUDINARY_CLOUD_NAME) {
+const isCloudinaryConfigured =
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET;
+
+if (isCloudinaryConfigured) {
   // Use Cloudinary storage
   storage = new CloudinaryStorage({
     cloudinary: cloudinary,
@@ -17,9 +22,9 @@ if (process.env.CLOUDINARY_CLOUD_NAME) {
       ],
     },
   });
-  console.log("Using Cloudinary storage for uploads");
+  console.log("SUCCESS: Cloudinary storage configured for uploads");
 } else {
-  // Fallback to local storage (not recommended for production on Render/Vercel)
+  // Fallback to local storage
   storage = multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, "uploads/");
@@ -29,7 +34,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME) {
     },
   });
   console.log(
-    "WARNING: Using local storage for uploads. Files will be lost on server restart!",
+    "WARNING: Cloudinary keys missing. Falling back to local storage (files will be lost on restart!)",
   );
 }
 
